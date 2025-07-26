@@ -37,7 +37,7 @@ export async function downloadAndUnzip(bookId: number) {
     return { dir: destPath, files };
 }
 
-async function listFilesRecursively(path: string): Promise<string[]> {
+export async function listFilesRecursively(path: string): Promise<string[]> {
     const entries = await FileSystem.readDirectoryAsync(path);
     const result: string[] = [];
     for (const entry of entries) {

@@ -1,4 +1,4 @@
-import { downloadAndUnzip, fetchBooks } from '@/data/api';
+import { downloadAndUnzip, fetchBooks, listFilesRecursively } from '@/data/api';
 import { useAudioPlayer } from '@/hooks/useAudioplayer';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from "expo-av";
@@ -22,7 +22,7 @@ export type BooksResponse = {
 };
 
 const AUDIO_EXTS = [".mp3", ".m4b", ".m4a", ".aac", ".wav", ".ogg"];
-
+const ROOT = FileSystem.documentDirectory + "audiobooks/";
 function isAudioFile(path: string) {
   const lower = path.toLowerCase();
   return AUDIO_EXTS.some((ext) => lower.endsWith(ext));
@@ -90,6 +90,14 @@ export default function Library() {
   useEffect(() => {
     fetchBooks().then((data) => {
       setBooks(data.books);
+
+      data?.books.forEach(b => {
+        const destPath = `${ROOT}${b.id}/`;
+        listFilesRecursively(destPath).then(files => {
+          setDownloadedFiles((prev) => ({ ...prev, [b.id]: files }));
+        })
+      })
+
       // console.log(data.books);
     });
 
@@ -130,17 +138,6 @@ export default function Library() {
             <MaterialIcons name='download' size={24} color="black" />
           )}
         </TouchableOpacity>
-        {files.length > 0 && (
-          <View style={styles.filesContainer}>
-            {files.map((file) => (
-              <Text style={styles.file} key={file}>
-                {file.replace(FileSystem.documentDirectory!, "")}
-              </Text>
-            ))}
-          </View>
-        )}
-
-
         {files.length > 0 && (
           <View style={styles.filesContainer}>
             {files.map((f) => {
