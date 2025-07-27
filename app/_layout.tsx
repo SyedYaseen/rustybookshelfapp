@@ -4,9 +4,21 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
+import { initDb } from '@/data/db';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { useEffect } from 'react';
 
 export default function RootLayout() {
+  useEffect(() => {
+    (async () => {
+      try {
+        await initDb();
+        console.log("Database initialized!");
+      } catch (err) {
+        console.error("DB init error:", err);
+      }
+    })();
+  }, []);
   const colorScheme = useColorScheme();
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),

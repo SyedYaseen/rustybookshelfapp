@@ -1,22 +1,14 @@
-import { downloadAndUnzip, fetchBooks, listFilesRecursively } from '@/data/api';
+import { downloadAndUnzip, fetchBookFilesData, fetchBooks, getProgress, listFilesRecursively, removeLocalBook } from '@/data/api';
+import { Audiobook, FileRow, markBookDownloaded, upsertAudiobooks, upsertFiles } from '@/data/db';
 import { useAudioPlayer } from '@/hooks/useAudioplayer';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-export type Book = {
-  id: number;
-  author: string;
-  cover_art: string;
-  files_location: string;
-  metadata: Record<string, any> | null;
-  series: string | null;
-  title: string;
-};
 
 export type BooksResponse = {
-  books: Book[];
+  books: Audiobook[];
   count: number;
   message: string;
 };
@@ -80,7 +72,7 @@ function formatMs(ms?: number) {
 }
 
 export default function Library() {
-  const [books, setBooks] = useState<Book[]>([]);
+  const [books, setBooks] = useState<Audiobook[]>([]);
   const [files, setFiles] = useState<string[]>([]);
 
   const [downloadingBookId, setDownloadingBookId] = useState<number | null>(null);
@@ -88,17 +80,16 @@ export default function Library() {
   const player = useAudioPlayer();
 
   useEffect(() => {
-    fetchBooks().then((data) => {
+    fetchBooks().then(async (data) => {
       setBooks(data.books);
+      await upsertAudiobooks(data.books)
 
-      data?.books.forEach(b => {
+      data?.books.forEach(async b => {
         const destPath = `${ROOT}${b.id}/`;
         listFilesRecursively(destPath).then(files => {
           setDownloadedFiles((prev) => ({ ...prev, [b.id]: files }));
         })
       })
-
-      // console.log(data.books);
     });
 
     Audio.setAudioModeAsync({
@@ -111,8 +102,16 @@ export default function Library() {
   const handleDownload = async (bookId: number) => {
     try {
       setDownloadingBookId(bookId);
+      const { data } = await fetchBookFilesData(bookId)
+      const fileRows: FileRow[] = data
       const { files } = await downloadAndUnzip(bookId);
+      fileRows?.map(fr => {
+        fr.local_path = files.find(f => fr.file_path && f.endsWith(fr.file_path))
+      })
+
+      await upsertFiles(fileRows)
       setDownloadedFiles((prev) => ({ ...prev, [bookId]: files }));
+      markBookDownloaded(bookId, `${ROOT}${bookId}/`)
     } catch (err) {
       console.error(`Failed to download ${bookId}:`, err);
     } finally {
@@ -120,11 +119,25 @@ export default function Library() {
     }
   };
 
+  const handleDelete = async (bookId: number) => {
+    try {
+      setDownloadedFiles(prev => {
+        const updated = { ...prev };
+        delete updated[bookId];
+        return updated;
+      })
 
-  const renderBook = ({ item }: { item: Book }) => {
+      await removeLocalBook(bookId)
+    } catch (err) {
+      console.error(`Failed to download ${bookId}:`, err);
+    }
+  }
+
+  const renderBook = ({ item }: { item: Audiobook }) => {
     const isDownloading = downloadingBookId === item.id;
     const files = downloadedFiles[item.id] || [];
     const handlePlay = async (uri: string) => {
+      const lastPos = await getProgress(1, item.id, 1); // update correct fileId
       await player.playUri(uri);
     };
 
@@ -138,6 +151,11 @@ export default function Library() {
             <MaterialIcons name='download' size={24} color="black" />
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => handleDelete(item.id)}>
+          <MaterialIcons name='delete' size={24} color="red" />
+        </TouchableOpacity>
+
         {files.length > 0 && (
           <View style={styles.filesContainer}>
             {files.map((f) => {
@@ -171,8 +189,6 @@ export default function Library() {
             onToggle={player.togglePlayPause}
           />
         )}
-
-
       </View>
     );
   };
