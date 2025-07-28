@@ -1,5 +1,5 @@
-import { downloadAndUnzip, fetchBookFilesData, fetchBooks, getProgress, listFilesRecursively, removeLocalBook } from '@/data/api';
-import { Audiobook, FileRow, markBookDownloaded, upsertAudiobooks, upsertFiles } from '@/data/db';
+import { downloadAndUnzip, fetchBookFilesData, fetchBooks, getProgress, removeLocalBook } from '@/data/api';
+import { Audiobook, FileRow, getFileProgress, getFilesForBook, markBookDownloaded, upsertAudiobooks, upsertFiles } from '@/data/db';
 import { useAudioPlayer } from '@/hooks/useAudioplayer';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from "expo-av";
@@ -73,10 +73,8 @@ function formatMs(ms?: number) {
 
 export default function Library() {
   const [books, setBooks] = useState<Audiobook[]>([]);
-  const [files, setFiles] = useState<string[]>([]);
-
   const [downloadingBookId, setDownloadingBookId] = useState<number | null>(null);
-  const [downloadedFiles, setDownloadedFiles] = useState<Record<number, string[]>>({});
+  const [downloadedFiles, setDownloadedFiles] = useState<Record<number, FileRow[]>>({});
   const player = useAudioPlayer();
 
   useEffect(() => {
@@ -86,9 +84,10 @@ export default function Library() {
 
       data?.books.forEach(async b => {
         const destPath = `${ROOT}${b.id}/`;
-        listFilesRecursively(destPath).then(files => {
+        const files = await getFilesForBook(b.id)
+        if (files && files.length) {
           setDownloadedFiles((prev) => ({ ...prev, [b.id]: files }));
-        })
+        }
       })
     });
 
@@ -110,7 +109,7 @@ export default function Library() {
       })
 
       await upsertFiles(fileRows)
-      setDownloadedFiles((prev) => ({ ...prev, [bookId]: files }));
+      setDownloadedFiles((prev) => ({ ...prev, [bookId]: fileRows }));
       markBookDownloaded(bookId, `${ROOT}${bookId}/`)
     } catch (err) {
       console.error(`Failed to download ${bookId}:`, err);
@@ -121,24 +120,27 @@ export default function Library() {
 
   const handleDelete = async (bookId: number) => {
     try {
+      await removeLocalBook(bookId)
       setDownloadedFiles(prev => {
         const updated = { ...prev };
         delete updated[bookId];
         return updated;
       })
-
-      await removeLocalBook(bookId)
     } catch (err) {
-      console.error(`Failed to download ${bookId}:`, err);
+      console.error(`Failed to delete ${bookId}:`, err);
     }
   }
 
   const renderBook = ({ item }: { item: Audiobook }) => {
+
     const isDownloading = downloadingBookId === item.id;
     const files = downloadedFiles[item.id] || [];
-    const handlePlay = async (uri: string) => {
-      const lastPos = await getProgress(1, item.id, 1); // update correct fileId
-      await player.playUri(uri);
+    const handlePlay = async (uri: string, file_id: number) => {
+      const lastPosServer = await getProgress(1, item.id, file_id); // get saved progress
+      const lastPosLcl = await getFileProgress(item.id, file_id)
+      const lastPos = Math.max(lastPosServer, lastPosLcl)
+      console.log("Last posiion", lastPosServer, lastPosLcl, lastPos)
+      await player.playUri(uri, item.id, file_id, lastPos);
     };
 
     return (
@@ -159,13 +161,13 @@ export default function Library() {
         {files.length > 0 && (
           <View style={styles.filesContainer}>
             {files.map((f) => {
-              const short = f.replace(FileSystem.documentDirectory!, "");
-              const isCurrent = player.currentUri === f;
+              const short = f.local_path?.replace(FileSystem.documentDirectory!, "");
+              const isCurrent = player.currentUri === f.local_path;
               return (
                 <TouchableOpacity
-                  key={f}
+                  key={f.id}
                   style={styles.fileRow}
-                  onPress={() => handlePlay(f)}
+                  onPress={() => handlePlay(f.local_path as string, f.id)}
                 >
                   <MaterialIcons
                     name={isCurrent && player.isPlaying ? "pause-circle" : "play-circle"}
@@ -180,15 +182,15 @@ export default function Library() {
           </View>
         )}
 
-        {/* Mini player UI if current book contains current track */}
-        {player.currentUri && files.includes(player.currentUri) && (
-          <MiniPlayer
-            isPlaying={player.isPlaying}
-            position={player.position}
-            duration={player.duration}
-            onToggle={player.togglePlayPause}
-          />
-        )}
+        {player.currentUri && files.some(f => f.local_path === player.currentUri)
+          && (
+            <MiniPlayer
+              isPlaying={player.isPlaying}
+              position={player.position}
+              duration={player.duration}
+              onToggle={player.togglePlayPause}
+            />
+          )}
       </View>
     );
   };

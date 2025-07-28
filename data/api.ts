@@ -1,6 +1,7 @@
 import { BooksResponse } from "@/app/(tabs)/library";
 import * as FileSystem from "expo-file-system";
 import { unzip } from "react-native-zip-archive";
+import { deleteBook } from "./db";
 
 const API_URL = "http://192.168.1.3:3000/api";
 
@@ -30,7 +31,7 @@ export async function downloadAndUnzip(bookId: number) {
 
     console.log("Unzipping:", zipPath, "->", destPath);
     await unzip(zipPath, destPath);
-
+    await FileSystem.deleteAsync(zipPath, { idempotent: false })
     const files = await listFilesRecursively(destPath);
     console.log(files)
     return { dir: destPath, files };
@@ -53,15 +54,17 @@ export async function listFilesRecursively(path: string): Promise<string[]> {
 }
 
 export async function removeLocalBook(bookId: number) {
-    const destPath = `${ROOT}${bookId}`;
-    await FileSystem.deleteAsync(destPath, { idempotent: false })
+    const destPath = `${ROOT}${bookId}/`;
+    // const del = await FileSystem.deleteAsync(ROOT, { idempotent: false })
+    const del = await FileSystem.deleteAsync(destPath, { idempotent: false })
+    await deleteBook(bookId)
 }
 
 export async function saveProgress(userId: number, bookId: number, fileId: number, position: number) {
     await fetch(`${API_URL}/update_progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, book_id: bookId, fileId, position_ms: position }),
+        body: JSON.stringify({ user_id: userId, book_id: bookId, file_id: fileId, progress_time_marker: position }),
     });
 }
 

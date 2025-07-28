@@ -25,6 +25,7 @@ export type FileRow = {
 };
 
 export type ProgressRow = {
+    book_id: number;
     file_id: number;
     progress_ms: number;
     last_updated?: string | null;
@@ -71,11 +72,13 @@ export async function initDb() {
 
     CREATE TABLE IF NOT EXISTS progress (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      book_id INTEGER NOT NULL,
       file_id INTEGER NOT NULL,
       progress_ms INTEGER NOT NULL DEFAULT 0,
       last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE,
-      UNIQUE (file_id)
+      FOREIGN KEY (book_id) REFERENCES files (book_id) ON DELETE CASCADE,
+      UNIQUE (file_id, book_id)
     );
   `);
 }
@@ -109,7 +112,11 @@ export async function upsertAudiobook(book: Audiobook) {
 }
 
 export async function upsertAudiobooks(books: Audiobook[]) {
-    const db = getDb();
+    let db = getDb()
+    if (!db) {
+        initDb()
+        db = getDb()
+    }
     await db.withTransactionAsync(async () => {
         for (const b of books) {
             await db.runAsync(
@@ -197,6 +204,7 @@ export async function getFile(fileId: number): Promise<FileRow | null> {
 
 export async function deleteBook(bookId: number) {
     const db = getDb();
+    await db.runAsync(`DELETE FROM files where book_id = ?`, [bookId])
     await db.runAsync(`DELETE FROM audiobooks WHERE id = ?`, [bookId]);
     // files + progress are deleted via FK cascade
 }
@@ -214,37 +222,39 @@ export async function searchBooks(query: string): Promise<Audiobook[]> {
 
 /* ---------- Progress ---------- */
 
-export async function getFileProgress(fileId: number): Promise<number> {
+export async function getFileProgress(bookId: number, fileId: number): Promise<number> {
     const db = getDb();
     const row = await db.getFirstAsync<{ progress_ms: number }>(
-        `SELECT progress_ms FROM progress WHERE file_id = ? LIMIT 1`,
-        [fileId]
+        `SELECT progress_ms FROM progress WHERE book_id = ? AND file_id = ? LIMIT 1`,
+        [bookId, fileId]
     );
     return row?.progress_ms ?? 0;
 }
 
-export async function setFileProgress(fileId: number, progressMs: number) {
+export async function setFileProgress(bookId: number, fileId: number, progressMs: number) {
     const db = getDb();
-    await db.runAsync(
-        `INSERT INTO progress (file_id, progress_ms, last_updated)
-     VALUES (?, ?, CURRENT_TIMESTAMP)
-     ON CONFLICT(file_id) DO UPDATE SET
+    try {
+        await db.runAsync(
+            `INSERT INTO progress (book_id, file_id, progress_ms, last_updated)
+     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(file_id, book_id) DO UPDATE SET
        progress_ms = excluded.progress_ms,
        last_updated = CURRENT_TIMESTAMP`,
-        [fileId, progressMs]
-    );
+            [bookId, fileId, progressMs]
+        );
+    } catch (e) { console.error(e) }
 }
-export async function setFileProgressBatch(items: { fileId: number; progressMs: number }[]) {
+export async function setFileProgressBatch(items: { bookId: number, fileId: number; progressMs: number }[]) {
     const db = getDb();
     await db.withTransactionAsync(async () => {
-        for (const { fileId, progressMs } of items) {
+        for (const { bookId, fileId, progressMs } of items) {
             await db.runAsync(
-                `INSERT INTO progress (file_id, progress_ms, last_updated)
-         VALUES (?, ?, CURRENT_TIMESTAMP)
+                `INSERT INTO progress (book_id, file_id, progress_ms, last_updated)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
          ON CONFLICT(file_id) DO UPDATE SET
            progress_ms = excluded.progress_ms,
            last_updated = CURRENT_TIMESTAMP`,
-                [fileId, progressMs]
+                [bookId, fileId, progressMs]
             );
         }
     });

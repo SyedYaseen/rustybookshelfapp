@@ -13,6 +13,7 @@ export default function RootLayout() {
     (async () => {
       try {
         await initDb();
+        // await resetDb()
         console.log("Database initialized!");
       } catch (err) {
         console.error("DB init error:", err);
