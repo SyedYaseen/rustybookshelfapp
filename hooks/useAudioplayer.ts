@@ -74,6 +74,7 @@ export function useAudioPlayer() {
                             currentFileId as number,
                             Math.floor(status.positionMillis),
                         );
+                        await saveProgress(1, currentBookId as number, currentFileId as number, Math.floor(status.positionMillis))
 
                         setIsPlaying(false);
                     } else {

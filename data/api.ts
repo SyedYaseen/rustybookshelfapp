@@ -55,8 +55,8 @@ export async function listFilesRecursively(path: string): Promise<string[]> {
 
 export async function removeLocalBook(bookId: number) {
     const destPath = `${ROOT}${bookId}/`;
-    // const del = await FileSystem.deleteAsync(ROOT, { idempotent: false })
-    const del = await FileSystem.deleteAsync(destPath, { idempotent: false })
+    // await FileSystem.deleteAsync(ROOT, { idempotent: false })
+    await FileSystem.deleteAsync(destPath, { idempotent: false })
     await deleteBook(bookId)
 }
 
@@ -73,6 +73,7 @@ export async function getProgress(userId: number, bookId: number, fileId: number
         `${API_URL}/get_progress/${userId}/${bookId}/${fileId}`
     );
     if (!res.ok) return 0;
+
     const data = await res.json();
-    return data.position_ms ?? 0;
+    return data.progress_time_marker ?? 0;
 }
