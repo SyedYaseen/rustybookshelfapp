@@ -79,6 +79,7 @@ export function useAudioPlayer() {
                         setIsPlaying(false);
                     } else {
                         await soundRef.current.playAsync();
+                        await soundRef.current.setPositionAsync(startPosition)
                         setIsPlaying(true);
                     }
                 }
