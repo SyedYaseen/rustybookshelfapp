@@ -33,13 +33,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons color={color} size={28} name="home" />,
         }}
       />
-      <Tabs.Screen
-        name="library"
-        options={{
-          title: 'Library',
-          tabBarIcon: ({ color }) => <MaterialIcons color={color} size={28} name="library-books" />,
-        }}
-      />
 
       <Tabs.Screen
         name="menu"

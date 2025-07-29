@@ -1,9 +1,40 @@
 import { BooksResponse } from "@/app/(tabs)/library";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from "expo-file-system";
 import { unzip } from "react-native-zip-archive";
 import { deleteBook } from "./db";
 
 const API_URL = "http://192.168.1.3:3000/api";
+
+
+export async function api(path: string, options: RequestInit = {}) {
+    const [token, serverUrl] = await Promise.all([
+        AsyncStorage.getItem('token'),
+        AsyncStorage.getItem('serverUrl'),
+    ]);
+
+    const res = await fetch(`${serverUrl}${path}`, {
+        ...options,
+        headers: {
+            ...(options.headers || {}),
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (res.status === 401) {
+        throw new Error('Unauthorized. Token expired?');
+    }
+
+    return res.json();
+}
+
+export async function logout(navigation: any) {
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('serverUrl');
+    navigation.replace('Login');
+}
+
 
 export async function fetchBooks(): Promise<BooksResponse> {
     const res = await fetch(`${API_URL}/list_books`);
