@@ -1,7 +1,7 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
+import * as FileSystem from "expo-file-system";
+
+export const AUDIO_EXTS = [".mp3", ".m4b", ".m4a", ".aac", ".wav", ".ogg"];
+export const ROOT = FileSystem.documentDirectory + "audiobooks/";
 
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';

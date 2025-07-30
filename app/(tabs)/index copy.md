@@ -1,7 +1,4 @@
-
-import Library from '@/components/library';
-import { AUDIO_EXTS, ROOT } from '@/constants/constants';
-
+import BookCard from '@/components/BookCard';
 import { downloadAndUnzip, fetchBookFilesData, fetchBooks, getProgress as getFileServerProgress, removeLocalBook } from '@/data/api';
 import { Audiobook, FileRow, getFileProgress as getFileLocalProgress, getFilesForBook, markBookDownloaded, upsertAudiobooks, upsertFiles } from '@/data/db';
 import { useAudioPlayer } from '@/hooks/useAudioplayer';
@@ -9,7 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export type BooksResponse = {
   books: Audiobook[];
@@ -17,7 +14,8 @@ export type BooksResponse = {
   message: string;
 };
 
-
+const AUDIO_EXTS = [".mp3", ".m4b", ".m4a", ".aac", ".wav", ".ogg"];
+const ROOT = FileSystem.documentDirectory + "audiobooks/";
 function isAudioFile(path: string) {
   const lower = path.toLowerCase();
   return AUDIO_EXTS.some((ext) => lower.endsWith(ext));
@@ -74,7 +72,7 @@ function formatMs(ms?: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export default function Home() {
+export default function Library() {
   const [books, setBooks] = useState<Audiobook[]>([]);
   const [downloadingBookId, setDownloadingBookId] = useState<number | null>(null);
   const [downloadedFiles, setDownloadedFiles] = useState<Record<number, FileRow[]>>({});
@@ -160,13 +158,13 @@ export default function Home() {
 
     return (
       <View style={styles.bookItem}>
-        {/* <BookCard
+        <BookCard
           title={item.title}
           coverUrl="https://www.thebookdesigner.com/wp-content/uploads/2023/12/The-Hobbit-Book-Cover-Minimalistic-Mountains.png?channel=Organic&medium=Google%20-%20Search"
           isPlaying={player.isPlaying}
           onDownload={() => handleDownload(item.id)}
-        //onPlayPause={ }
-        /> */}
+          //onPlayPause={ }
+        />
 
 
         <Text style={styles.bookTitle}>{item.title}</Text>
@@ -220,14 +218,13 @@ export default function Home() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      {/* <FlatList
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
+      <FlatList
         data={books}
         keyExtractor={(book) => book?.id?.toString()}
         renderItem={renderBook}
         contentContainerStyle={{ paddingBottom: 40 }}
-      /> */}
-      <Library />
+      />
     </View>
   );
 }
